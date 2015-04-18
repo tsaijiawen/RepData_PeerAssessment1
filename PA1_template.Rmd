@@ -8,18 +8,162 @@ output:
 
 ## Loading and preprocessing the data
 
-
+```{r, echo=TRUE}
+# read repdata-data-activity.zip and store as data rame
+source_df=read.csv(unz("activity.zip","activity.csv")) 
+```
 
 ## What is mean total number of steps taken per day?
 
+```{r, echo=TRUE}
+# split data frame by day
+df_date<-split(source_df, source_df$date)
+# collect sum of steps per day
+total_number_of_steps<-NULL
+for ( i in 1:length(df_date) ) {
+  sum<-sum(df_date[[i]]$steps)
+  if (!is.na(sum)) {
+  total_number_of_steps<-c(total_number_of_steps, sum)
+  }
+}
+mean_date<-mean(total_number_of_steps)
+median_date<-median(total_number_of_steps)
+```
+0. The totoal number of steps taken per day is:  
+`r total_number_of_steps`
+  
+1. The histogram of the total number of steps taken each day is as shown:
+```{r, echo=TRUE}
+hist(total_number_of_steps)
+```
+
+2. mean is `r mean_date`, median is `r median_date`
 
 
 ## What is the average daily activity pattern?
 
+```{r, echo=TRUE}
+# split data frame by interval
+df_interval<-split(source_df, source_df$interval)
+# collect mean of steps per interval
+average_number_of_steps<- NULL
+for ( i in 1:length(df_interval) ) {
+  # calculate mean with ignore NA
+  mean<-mean(df_interval[[i]]$steps, na.rm=TRUE)
+  if (!is.na(mean)) {
+  average_number_of_steps<-c(average_number_of_steps, mean)
+  }
+}
+# check the interval with max mean vlaue
+target_interval<-names(df_interval)[average_number_of_steps==max(average_number_of_steps)]
+```
 
-
+1. time series plot of the 5-minute interval and the average number of steps taken, averaged across all days:  
+```{r, echo=TRUE}
+plot(names(df_interval),average_number_of_steps,type="l", main="time series plot", xlab="interval", ylab="average number of steps")
+```
+  
+2. The 5-minute interval contains the maximum number of steps is `r target_interval`
+  
 ## Imputing missing values
 
+```{r, echo=TRUE}
+# 1. calculate the NA counts
+na_count<-sum(is.na(source_df$steps))
 
+# 2/3. use mean of intervals to fill all NA and create new dataset
+  # copy source_df to new one
+new_source_df<-source_df
+  # assign "the mean for that 5-minute interval" to the NA values of the interval
+for (i in 1:length(new_source_df$steps)) {
+  if (is.na(new_source_df$steps[i])) {
+    new_source_df$steps[i]<-average_number_of_steps[((i-1)%%(length(average_number_of_steps)))+1]
+  }
+}
+
+# 4. re-calculate
+df_date<-split(new_source_df, new_source_df$date)
+total_number_of_steps<-NULL
+for ( i in 1:length(df_date) ) {
+  sum<-sum(df_date[[i]]$steps)
+  if (!is.na(sum)) {
+  total_number_of_steps<-c(total_number_of_steps, sum)
+  }
+}
+mean_date<-mean(total_number_of_steps)
+median_date<-median(total_number_of_steps)
+```
+  
+1. The total number of NA is `r na_count`  
+The totoal number of steps with new dataset are:  
+`r total_number_of_steps`
+  
+2. use mean of intervals to fill all NA and create new dataset  
+4. The histogram of the total number of steps taken each day:
+```{r, echo=TRUE}
+hist(total_number_of_steps)
+```
+
+mean of new ataset is `r mean_date`, median of new ataset is `r median_date`  
+From the histogram, the frequency of the mean is increase due to the strategy for filling NAs.  
+Since the strategy, the mean is not changed but the median is equal to mean.  
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+```{r, echo=TRUE}
+library(chron)   # for weekend check
+library(ggplot2) # for panel plot
+
+weekend_list<-is.weekend(as.Date(new_source_df$date))
+weekday_indicator<-as.character(c(1:length(weekend_list)))
+for ( i in 1:length(weekend_list) ) {
+  if (weekend_list[i]) {
+    weekday_indicator[i]<-"weekend"
+  } else {
+    weekday_indicator[i]<-"weekday"
+  }
+}
+# create new dataset with weekday_id
+new_dataset<-data.frame(steps=new_source_df$steps, date=new_source_df$date,interval=new_source_df$interval,weekday_id=weekday_indicator)
+
+
+# calculate average_number_of_steps_weekend and average_number_of_steps_weekday
+new_dataset_weekday_id_list<-split(new_dataset, new_dataset$weekday_id)
+new_dataset_weekday<-new_dataset_weekday_id_list$'weekday'
+new_dataset_weekend<-new_dataset_weekday_id_list$'weekend'
+
+df_interval_weekday<-split(new_dataset_weekday, new_dataset_weekday$interval)
+average_number_of_steps_weekday<- NULL
+for ( i in 1:length(df_interval_weekday) ) {
+  mean<-mean(df_interval_weekday[[i]]$steps, na.rm=TRUE)
+  if (!is.na(mean)) {
+  average_number_of_steps_weekday<-c(average_number_of_steps_weekday, mean)
+  }
+}
+df_interval_weekend<-split(new_dataset_weekend, new_dataset_weekend$interval)
+average_number_of_steps_weekend<- NULL
+for ( i in 1:length(df_interval_weekend) ) {
+  mean<-mean(df_interval_weekend[[i]]$steps, na.rm=TRUE)
+  if (!is.na(mean)) {
+  average_number_of_steps_weekend<-c(average_number_of_steps_weekend, mean)
+  }
+}
+
+# formatting data for panel plot
+week<-NULL
+for (i in 1:length(average_number_of_steps_weekend)) {
+  week<-c(week,"weekend")
+}
+for (i in 1:length(average_number_of_steps_weekday)) {
+  week<-c(week,"weekday")
+}
+statistic<-data.frame(ave=c(average_number_of_steps_weekend,average_number_of_steps_weekday),
+                      interval=as.numeric(c(names(df_interval_weekend),names(df_interval_weekday))),
+                      week=week )
+```
+  
+2. panel plot containing a time series plot of the 5-minute interval and the average number of steps taken, averaged across all weekday days or weekend days.:  
+```{r, echo=TRUE}
+ggplot(statistic,aes(interval, ave))+facet_wrap(~week,nrow=2)+labs(x="interval", y="Number of steps")+geom_line()
+
+```
